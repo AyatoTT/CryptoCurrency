@@ -41,7 +41,7 @@ export default {
   max-width: 100%;
   margin: 0 auto;
   min-height: 100vh;
-  background: #f8f8f8;
+  background: var(--bg-primary);
   font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
