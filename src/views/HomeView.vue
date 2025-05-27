@@ -24,7 +24,9 @@ import CryptoCard from '@/components/CryptoCard.vue'
 const cryptoList = ref([
   { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', current_price: 0, price_change_percentage_24h: 0 },
   { id: 'ethereum', symbol: 'eth', name: 'Ethereum', current_price: 0, price_change_percentage_24h: 0 },
-  { id: 'tether', symbol: 'usdt', name: 'Tether', current_price: 0, price_change_percentage_24h: 0 }
+  { id: 'tether', symbol: 'usdt', name: 'Tether', current_price: 0, price_change_percentage_24h: 0 },
+  { id: 'solana', symbol: 'sol', name: 'Solana', current_price: 0, price_change_percentage_24h: 0 },
+  { id: 'tron', symbol: 'trx', name: 'Tron', current_price: 0, price_change_percentage_24h: 0 }
 ])
 const loading = ref(true)
 const error = ref(null)

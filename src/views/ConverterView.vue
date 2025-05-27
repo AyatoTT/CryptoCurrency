@@ -9,13 +9,14 @@
             placeholder="0.00"
             class="amount-input"
             min="0"
-            @input="convertCurrency"
+            max="1e15"
+            @input="handleInput"
         />
 
         <div class="custom-select" @click="toggleDropdown('from')">
           <span>{{ getSymbol(fromCurrency) }}</span>
           <svg class="arrow" :class="{ open: dropdownOpen.from }" viewBox="0 0 24 24" width="16" height="16">
-            <path d="M7 10l5 5 5-5z" fill="currentColor" />
+            <path d="M7 10l5 5 5-5z" fill="currentColor"/>
           </svg>
 
           <ul v-if="dropdownOpen.from" class="dropdown-list">
@@ -45,7 +46,7 @@
         <div class="custom-select" @click="toggleDropdown('to')">
           <span>{{ getSymbol(toCurrency) }}</span>
           <svg class="arrow" :class="{ open: dropdownOpen.to }" viewBox="0 0 24 24" width="16" height="16">
-            <path d="M7 10l5 5 5-5z" fill="currentColor" />
+            <path d="M7 10l5 5 5-5z" fill="currentColor"/>
           </svg>
 
           <ul v-if="dropdownOpen.to" class="dropdown-list">
@@ -73,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import {ref, onMounted, watch} from 'vue'
 import axios from 'axios'
 
 const API_URL = 'https://api.coingecko.com/api/v3/simple/price'
@@ -85,18 +86,55 @@ const convertedAmount = ref('0.00')
 const conversionRate = ref(null)
 const error = ref(null)
 const loading = ref(false)
-const dropdownOpen = ref({ from: false, to: false })
+const dropdownOpen = ref({from: false, to: false})
+const rates = ref({})
 
-// Валюты для выбора — можно расширять
+// Валюты для выбора
 const currencyOptions = [
-  { id: 'bitcoin', symbol: 'BTC' },
-  { id: 'ethereum', symbol: 'ETH' },
-  { id: 'usd', symbol: 'USD' },
+  {id: 'bitcoin', symbol: 'BTC'},
+  {id: 'ethereum', symbol: 'ETH'},
+  {id: 'usd', symbol: 'USD'},
+  {id: 'solana', symbol: 'SOL'},
+  {id: 'tron', symbol: 'TRX'},
 ]
 
 const getSymbol = (id) => {
   const coin = currencyOptions.find(c => c.id === id)
   return coin ? coin.symbol : id
+}
+
+const handleInput = (e) => {
+  const value = parseFloat(e.target.value)
+  if (isNaN(value) || value < 0) {
+    amount.value = 0
+  } else if (value > 1e15) {
+    amount.value = 1e15
+    error.value = 'Введено максимально допустимое значение'
+  } else {
+    amount.value = value
+    error.value = null
+  }
+  convertCurrency()
+}
+
+const formatNumber = (num) => {
+  if (num === 0) return '0.00'
+
+  // Для очень больших чисел
+  if (num >= 1e6) {
+    return num.toExponential(4)
+  }
+
+  // Определяем количество знаков после запятой
+  if (num >= 1000) {
+    return num.toLocaleString(undefined, {maximumFractionDigits: 2})
+  } else if (num >= 1) {
+    return num.toLocaleString(undefined, {maximumFractionDigits: 4})
+  } else if (num >= 0.01) {
+    return num.toLocaleString(undefined, {maximumFractionDigits: 6})
+  } else {
+    return num.toLocaleString(undefined, {maximumFractionDigits: 8})
+  }
 }
 
 const fetchRates = async () => {
@@ -105,8 +143,6 @@ const fetchRates = async () => {
     error.value = null
 
     const ids = currencyOptions.map(c => c.id).join(',')
-    // Запрашиваем цены по всем валютам относительно USD
-    // API вернет объект { bitcoin: { usd: 50000 }, ethereum: { usd: 3000 }, ... }
     const response = await axios.get(API_URL, {
       params: {
         ids,
@@ -114,13 +150,7 @@ const fetchRates = async () => {
       }
     })
 
-    // Соберём курс конвертации из API данных
-    // В итоге нам нужно уметь конвертировать любую валюту в любую,
-    // так что считаем их курс через USD
     const pricesUSD = response.data
-
-    // Добавим удобство — кэшируем курсы в объекте:
-    // ex: rates['bitcoin']['ethereum'] = ...
     rates.value = {}
 
     currencyOptions.forEach(c1 => {
@@ -129,31 +159,34 @@ const fetchRates = async () => {
         if (c1.id === c2.id) {
           rates.value[c1.id][c2.id] = 1
         } else if (c1.id === 'usd') {
-          // usd к другим валютам — 1 / цена той валюты в usd
           rates.value[c1.id][c2.id] = 1 / (pricesUSD[c2.id]?.usd || 1)
         } else if (c2.id === 'usd') {
           rates.value[c1.id][c2.id] = pricesUSD[c1.id]?.usd || 1
         } else {
-          // Для конвертации из одной крипты в другую:
-          // c1 -> usd, usd -> c2
           rates.value[c1.id][c2.id] = (pricesUSD[c1.id]?.usd || 1) / (pricesUSD[c2.id]?.usd || 1)
         }
       })
     })
 
   } catch (err) {
-    error.value = 'Failed to load data from API. Please try again later.'
+    error.value = 'Ошибка загрузки данных. Попробуйте позже.'
     console.error('API error:', err)
   } finally {
     loading.value = false
   }
 }
 
-const rates = ref({})
-
 const convertCurrency = () => {
   try {
     error.value = null
+
+    if (amount.value > Number.MAX_SAFE_INTEGER) {
+      error.value = 'Слишком большое число'
+      convertedAmount.value = '∞'
+      conversionRate.value = null
+      return
+    }
+
     if (!rates.value[fromCurrency.value] || !rates.value[fromCurrency.value][toCurrency.value]) {
       convertedAmount.value = '0.00'
       conversionRate.value = null
@@ -161,17 +194,19 @@ const convertCurrency = () => {
     }
 
     if (fromCurrency.value === toCurrency.value) {
-      convertedAmount.value = amount.value.toFixed(6)
+      convertedAmount.value = formatNumber(amount.value)
       conversionRate.value = '1.000000'
       return
     }
 
     const rate = rates.value[fromCurrency.value][toCurrency.value]
-    conversionRate.value = rate.toFixed(6)
-    convertedAmount.value = (amount.value * rate).toFixed(6)
+    conversionRate.value = formatNumber(rate)
+    const result = amount.value * rate
+
+    convertedAmount.value = formatNumber(result)
 
   } catch (err) {
-    error.value = 'Conversion failed. Try again later.'
+    error.value = 'Ошибка конвертации. Попробуйте позже.'
     console.error('Conversion error:', err)
   }
 }
@@ -197,7 +232,6 @@ const selectCurrency = (which, id) => {
   convertCurrency()
 }
 
-// Закрыть дропдауны при клике вне компонента
 const closeDropdowns = (e) => {
   if (!e.target.closest('.custom-select')) {
     dropdownOpen.value.from = false
@@ -211,7 +245,6 @@ onMounted(async () => {
   convertCurrency()
 })
 
-// Автоматически пересчитываем при изменении валют
 watch([fromCurrency, toCurrency], convertCurrency)
 </script>
 
@@ -242,9 +275,12 @@ watch([fromCurrency, toCurrency], convertCurrency)
 }
 
 .converter-card {
+  max-width: 500px;
+  margin: 0 auto;
+  background: var(--bg-secondary);
   border-radius: 20px;
   padding: 24px;
-  margin: 0 auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .input-group {
@@ -260,7 +296,7 @@ watch([fromCurrency, toCurrency], convertCurrency)
   flex: 1;
   padding: 14px 16px;
   border: none;
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   color: var(--text-primary);
   font-size: 18px;
   font-weight: 600;
@@ -274,16 +310,13 @@ watch([fromCurrency, toCurrency], convertCurrency)
 }
 
 .custom-select {
-  position: absolute;
-  right: 5dvw;
-  width: 90px;
-
   padding: 14px 16px;
-  background: var(--bg-primary);
-  border-radius: 0;
-  border: 1px solid var(--border-color);
+  position: absolute;
+  right: 10dvw;
   border-top-right-radius: 16px;
   border-bottom-right-radius: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   cursor: pointer;
   user-select: none;
   display: flex;
@@ -293,6 +326,7 @@ watch([fromCurrency, toCurrency], convertCurrency)
   font-size: 18px;
   color: var(--text-primary);
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  min-width: 90px;
 }
 
 .arrow {
@@ -307,9 +341,9 @@ watch([fromCurrency, toCurrency], convertCurrency)
 
 .dropdown-list {
   position: absolute;
-  top: 110%;
-  left: 0;
-  width: 100%;
+  top: 100%;
+  right: 0;
+  width: 120px;
   background: var(--bg-secondary);
   border-radius: 16px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
@@ -317,7 +351,7 @@ watch([fromCurrency, toCurrency], convertCurrency)
   overflow-y: auto;
   z-index: 10;
   padding: 0;
-  margin: 8px 0 0 0;
+  margin: 4px 0 0 0;
   list-style: none;
   font-weight: 600;
   font-size: 16px;
@@ -328,7 +362,6 @@ watch([fromCurrency, toCurrency], convertCurrency)
   cursor: pointer;
   transition: background-color 0.2s ease;
   color: var(--text-primary);
-  border-radius: 16px;
 }
 
 .dropdown-list li:hover {
@@ -337,9 +370,8 @@ watch([fromCurrency, toCurrency], convertCurrency)
 }
 
 .dropdown-list li.selected {
-  background: var(--accent-color);
-  color: #007AFFFF;
-  font-weight: 700;
+  background: rgba(0, 122, 255, 0.1);
+  color: var(--accent-color);
 }
 
 .swap-icon {
@@ -348,12 +380,13 @@ watch([fromCurrency, toCurrency], convertCurrency)
   cursor: pointer;
   font-size: 28px;
   user-select: none;
-  transition: color 0.3s ease;
+  transition: transform 0.3s ease, color 0.3s ease;
   color: var(--accent-color);
 }
 
 .swap-icon:hover {
   color: #0051a8;
+  transform: rotate(180deg);
 }
 
 .conversion-info {

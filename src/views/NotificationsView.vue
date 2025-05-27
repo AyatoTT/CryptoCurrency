@@ -52,6 +52,8 @@ const availableCoins = ref([
   {id: 'bitcoin', symbol: 'btc', name: 'Bitcoin'},
   {id: 'ethereum', symbol: 'eth', name: 'Ethereum'},
   {id: 'tether', symbol: 'usdt', name: 'Tether'},
+  {id: 'solana', symbol: 'sol', name: 'Solana'},
+  {id: 'tron', symbol: 'trx', name: 'Tron'},
 ])
 
 const frequencyOptions = ref([
