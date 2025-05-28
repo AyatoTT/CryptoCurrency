@@ -259,7 +259,7 @@ onMounted(async () => {
   width: 44px;
   height: 24px;
   border-radius: 12px;
-  background-color: var(--toggle-bg);
+  background-color: var(--bg-secondary);;
   transition: background-color 0.2s;
 }
 
