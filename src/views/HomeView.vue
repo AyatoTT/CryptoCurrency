@@ -34,7 +34,7 @@ const lastUpdated = ref('')
 let intervalId = null
 const chatId = ref(localStorage.getItem('telegram_chat_id'))
 
-const API_KEY = 'CG-SK4VWzfR73G4CmXjfXuujvL4'
+const API_KEY = 'CG-ra6LAH5Q5iNJRqdZ5d5sSoQT'
 const API_URL = 'https://api.coingecko.com/api/v3/coins/markets'
 
 const fetchData = async () => {
